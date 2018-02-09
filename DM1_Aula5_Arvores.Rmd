@@ -1,0 +1,305 @@
+---
+title: "DM1-Aula5 - Árvores de Classificação"
+author: "Prof. Tatiana Escovedo"
+date: "17/01/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (Árvores de Classificação)
+
+## 1. Árvores de Classificação
+
+Vamos utilizar a base de dados banknote, do pacote mclust. Este dataset contem dados de notas de 1000 francos suíços, verdadeiras e falsas. Os atributos desta base de dados estão medidos em milímetros (mm), e são: **Length** (comprimento da nota), **Left** (largura da borda esquerda), **Right** (largura da borda direita), **Bottom** (largura da margem inferior), **Top** (largura da margem superior), **Diagonal** (comprimento da diagonal).
+
+Para cada exemplo, há duas possíveis classes, armazenada na coluna **Status**: *genuine* ou *counterfeit*. 
+
+### 1.1. Pacotes e Carga de Dados
+
+Primeiramente, vamos instalar o pacote *mclust*, se necessário, e carregar os dados.
+
+```{r}
+#install.packages("mclust")
+data('banknote', package='mclust')
+```
+
+
+### 1.2. Análise Exploratória de Dados
+
+Vamos explorar um pouco os dados, com as funções **head**, **tail** e **summary**. Também vamos averiguar quantos exemplos temos pertencentes a cada classe no dataset.
+
+```{r}
+head(banknote)
+tail(banknote)
+summary(banknote)
+table(banknote$Status)
+```
+
+Podemos também procurar alguma correlação entre os atributos, usando a função **cor**.
+
+```{r}
+cor(banknote$Left,banknote$Right)
+cor(banknote$Left, banknote$Diagonal)
+```
+
+É possível plotar um gráfico de correlações usando o pacote *corrplot*. Veja mais detalhes [aqui](http://www.sthda.com/english/wiki/visualize-correlation-matrix-using-correlogram). Primeiro, vamos instalar e referenciar o pacote *corrplot*.
+
+```{r}
+#install.packages("corrplot")
+library("corrplot")
+```
+
+A seguir, vamos exibir a matriz de correlação completa.
+
+```{r}
+atributos <- banknote[,2:7] # exibe a correlação apenas entre os atributos (dados numéricos)
+matriz <- cor(atributos)
+head(round(matriz,2)) # arredonda os coeficientes para duas casas decimais
+```
+
+Por ultimo, vamos plotar o gráfico da matriz de correlação. Há diferentes opções para o gráfico.As correlações positivas são exibidas em azul e as negativas, em vermelho. A intensidade da cor e o tamanho do círculo é proporcional aos coeficientes de correlação. 
+
+```{r}
+corrplot(matriz, method="circle")
+corrplot(matriz, method="number")
+corrplot(matriz, method="color")
+corrplot(matriz, method="color", addCoef.col = "black")
+```
+
+
+### 1.3. Preparação de Dados
+
+Como vimos anteriormente, nossa base de dados é composta de 100 notas genuínas e 100 falsas. Como as classes são equilibradas, podemos selecionar aleatoriamente e sem reposição 150 exemplos para o conjunto de treinamento. As 50 observações restantes serão usadas para o conjunto de teste.
+
+```{r}
+numLinhas = nrow(banknote) # verifica o número de linhas do dataset
+base.treino <- sample(1:numLinhas, 150, FALSE) # sorteia 150 exemplos dentre todos os exemplos do dataset
+head(base.treino) # exibe as 5 primeiras linhas sorteadas
+```
+
+### 1.4. Modelagem
+
+#### 1.4.1. Modelo 1: C5.0
+
+##### 1.4.1.1. Pacotes e Carga de Dados
+
+Agora que já separamos os nossos dados em bases de treino e teste, podemos construir o modelo de classificação que quisermos. O primeiro modelo de árvore construído será o C5.0, uma extensão do C4.5, disponível no pacote *C50*. Primeiro, então, instalamos e carregamos o pacote. Este algoritmo usa a medida de entropia para fazer as divisões de nós.
+
+```{r}
+#install.packages("C50")
+library(C50)
+```
+
+##### 1.4.1.2. Construção do Modelo
+
+A seguir, vamos contruir o modelo usando os dados de treino.
+
+```{r}
+modeloC50 <- C5.0(Status ~., data = banknote[base.treino,]) # constrói o modelo usando a variável Status como variável de classe. O argumento ~. diz que todos os atributos devem ser utilizados.
+plot(modeloC50) # plota o gráfico da árvore construída
+```
+
+Também podemos construir o mesmo modelo exibindo as regras utilizadas para sua construção, no formato if-then. Isto facilita a legibilidade no caso de uma árvore grande.
+
+```{r}
+modeloC50.com.regras <- C5.0(Status ~ ., data = banknote[base.treino,], rules=TRUE)
+summary(modeloC50.com.regras)
+```
+
+##### 1.4.1.3. Aplicação do Modelo (Dados de Treino)
+
+Vamos agora aplicar o modelo construído na base de treinamento, usando a função *predict*.
+
+```{r}
+pred.treino <- predict(modeloC50, newdata = banknote[base.treino,], type="class") # a função predict recebe como argumentos o modelo construído, os dados a serem aplicados e type="class" indica que queremos que sejam retornados os rótulos de classe.
+```
+
+##### 1.4.1.4. Avaliação do Modelo (Dados de Treino)
+
+Agora vamos avaliar o modelo, exibindo a matriz de confusão e a acurácia de treino. Como os dados avaliados foram os dados utilizados para construir o modelo, espera-se uma acurácia muito alta.
+
+```{r}
+matriz.conf.treino <- table(banknote$Status[base.treino], pred.treino, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de treino
+print(matriz.conf.treino)
+acc.treino <- (matriz.conf.treino[1,1] + matriz.conf.treino[2,2]) / (matriz.conf.treino[1,1] + matriz.conf.treino[1,2] + matriz.conf.treino[2,1] + matriz.conf.treino[2,2]) * 100 # calcula a acurácia de treino
+print(acc.treino)
+```
+
+##### 1.4.1.5. Aplicação do Modelo (Dados de Teste)
+
+Agora vamos ao que interessa: aplicar o modelo nos dados de teste. Para isso, basta utilizar os dados que **não** estão na base de treino. Basta usar *-base.treino*.
+
+```{r}
+pred.teste <- predict(modeloC50, newdata = banknote[-base.treino,], type="class") # aplica o modelo nos dados de teste
+```
+
+##### 1.4.1.6. Avaliação do Modelo (Dados de Teste)
+
+Vamos finalmente avaliar o resultado, exibindo a matriz de confusão e a acurácia de teste.
+
+```{r}
+matriz.conf.teste <- table(banknote$Status[-base.treino], pred.teste, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de teste
+print(matriz.conf.teste)
+acc.teste <- (matriz.conf.teste[1,1] + matriz.conf.teste[2,2]) / (matriz.conf.teste[1,1] + matriz.conf.teste[1,2] + matriz.conf.teste[2,1] + matriz.conf.teste[2,2]) * 100  # calcula a acurácia de teste
+print(acc.teste)
+```
+
+Repare que cada vez que este script for executado, a acurácia de teste será diferente, uma vez que o particionamento dos conjuntos de treino e de teste é feito de forma aleatória.
+
+#### 1.4.2. Modelo 2: tree
+
+##### 1.4.2.1. Pacotes e Carga de Dados
+
+Vamos agora utilizar o pacote *tree* para construir nossa árvore de classificação. Este pacote permite escolher o critério de particionamento utilizado através do argumento *split*.
+
+Inicialmente, instalamos e carregamos o pacote.
+
+```{r}
+#install.packages("tree")
+library(tree)
+```
+
+##### 1.4.2.2. Construção do Modelo
+
+A seguir, construímos o modelo usando a base de treino (já criada anteriormente). As opções de critério de particionamento são *deviance* e *gini*.
+
+```{r}
+modeloTree <- tree(Status ~ ., data = banknote[base.treino,], split="deviance") # constrói o modelo
+plot(modeloTree) 
+text(modeloTree) # plota a árvore gerada
+summary(modeloTree) #exibe a performance de classificação
+```
+
+##### 1.4.2.3. Aplicação e Avaliação do Modelo (Dados de Teste)
+
+Aplicamos então o modelo nos dados de teste e exibimos a matriz de confusão e a acurácia.
+
+```{r}
+pred.teste <- predict(modeloTree, newdata = banknote[-base.treino,]) # aplica o modelo no conjunto de teste
+tail(pred.teste,5)
+
+pred.class <- colnames(pred.teste)[max.col(pred.teste, ties.method = c("random"))] # guarda as classes preditas
+tail(pred.class,5)
+
+matriz.conf.teste <- table(banknote$Status[-base.treino], pred.class, dnn = c("Classe Observada", "Classe Predita")) # calcula a matriz de confusão de teste
+print(matriz.conf.teste)
+acc.teste <- (matriz.conf.teste[1,1] + matriz.conf.teste[2,2]) / (matriz.conf.teste[1,1] + matriz.conf.teste[1,2] + matriz.conf.teste[2,1] + matriz.conf.teste[2,2]) * 100 # calcula a acurácia de teste
+print(acc.teste) 
+```
+
+#### 1.4.3. Modelo 3: ctree
+
+Vamos agora utilizar o pacote *party* para construir nossa árvore de classificação, usando a função *ctree*. Serão apresentados exemplos com duas diferentes bases de dados.
+
+##### 1.4.3.1. Base 1
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+###### Construção da base de treino
+```{r}
+data('banknote', package='mclust')
+numLinhas = nrow(banknote)
+base.treino <- sample(1:numLinhas, 150, FALSE)
+```
+
+###### Construção do Modelo
+```{r}
+library(party)
+modeloCTree <- ctree(Status ~ ., data = banknote[base.treino,]) # constrói o modelo
+plot(modeloCTree)
+```
+
+###### Aplicação - Treino
+```{r}
+pred.treino <- predict(modeloCTree, newdata = banknote[base.treino,]) # aplica o modelo nos dados de treino
+matriz.conf.treino <- table(banknote$Status[base.treino], pred.treino, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de treino
+print(matriz.conf.treino)
+acc.treino <- (matriz.conf.treino[1,1] + matriz.conf.treino[2,2]) / (matriz.conf.treino[1,1] + matriz.conf.treino[1,2] + matriz.conf.treino[2,1] + matriz.conf.treino[2,2]) * 100  # calcula a acurácia de treino
+print(acc.treino)
+```
+
+###### Aplicação - Teste
+```{r}
+pred.teste <- predict(modeloCTree, newdata = banknote[-base.treino,]) # aplica o modelo nos dados de teste
+matriz.conf.teste <- table(banknote$Status[-base.treino], pred.teste, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de teste
+print(matriz.conf.teste)
+acc.teste <- (matriz.conf.teste[1,1] + matriz.conf.teste[2,2]) / (matriz.conf.teste[1,1] + matriz.conf.teste[1,2] + matriz.conf.teste[2,1] + matriz.conf.teste[2,2]) * 100  # calcula a acurácia de teste
+print(acc.teste)
+```
+
+##### 1.4.3.2. Base 2
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+###### Construção da base de treino
+```{r}
+data('readingSkills', package='party')
+numLinhas = nrow(readingSkills)
+base.treino <- sample(1:numLinhas, 150, FALSE)
+```
+
+###### Construção do Modelo
+```{r}
+library(party)
+modeloCTree <- ctree(nativeSpeaker ~ ., data = readingSkills[base.treino,]) # constrói o modelo
+plot(modeloCTree)
+```
+
+###### Aplicação - Treino
+```{r}
+pred.treino <- predict(modeloCTree, newdata = readingSkills[base.treino,]) # aplica o modelo nos dados de treino
+matriz.conf.treino <- table(readingSkills$nativeSpeaker[base.treino], pred.treino, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de treino
+print(matriz.conf.treino)
+acc.treino <- (matriz.conf.treino[1,1] + matriz.conf.treino[2,2]) / (matriz.conf.treino[1,1] + matriz.conf.treino[1,2] + matriz.conf.treino[2,1] + matriz.conf.treino[2,2]) * 100  # calcula a acurácia de treino
+print(acc.treino)
+```
+
+###### Aplicação - Teste
+```{r}
+pred.teste <- predict(modeloCTree, newdata = readingSkills[-base.treino,]) # aplica o modelo nos dados de teste
+matriz.conf.teste <- table(readingSkills$nativeSpeaker[-base.treino], pred.teste, dnn=c("Classe Observada", "Classe Predita")) # cria a matriz de confusão de teste
+print(matriz.conf.teste)
+acc.teste <- (matriz.conf.teste[1,1] + matriz.conf.teste[2,2]) / (matriz.conf.teste[1,1] + matriz.conf.teste[1,2] + matriz.conf.teste[2,1] + matriz.conf.teste[2,2]) * 100  # calcula a acurácia de teste
+print(acc.teste)
+```
+
+
+> Mais modelos de árvores de decisão podem ser encontrados [aqui](https://machinelearningmastery.com/non-linear-classification-in-r-with-decision-trees/).
+
+> Para casa: utilize a base de dados Iris e aplique nos modelos executados em aula e nos modelos apresentados no site acima (faça uma rápida pesquisa sobre eles antes de utilizá-los). Analise qual é o melhor modelo para a base de dados. Como você apresentaria os resultados da sua pesquisa? Dica: lembre das etapas do projeto de DM.
+
+
+```{r}
+# prepara dados de treino
+numLinhas.iris = nrow(iris)
+train.iris <- sample(1:numLinhas.iris, 100, replace = FALSE)
+```
+
+Usando o modelo C5.0:
+
+```{r}
+library(C50) # carrega o pacote
+fit <- C5.0(Species~., data=iris[train.iris,], trials=10) # constrói o modelo
+print(fit) # exibe detalhes do modelo
+plot(fit) # plota a árvore construída
+pred.iris <- predict(fit, iris[-train.iris,]) # aplica a árvore no conjunto de teste
+matriz.conf.teste <- table(pred.iris, iris$Species[-train.iris]) # calcula a matriz de confusão de teste
+print(matriz.conf.teste)
+acc.teste <- (matriz.conf.teste[1,1] + matriz.conf.teste[2,2] + matriz.conf.teste[3,3]) / (matriz.conf.teste[1,1] + matriz.conf.teste[1,2] + matriz.conf.teste[1,3] + matriz.conf.teste[2,1] + matriz.conf.teste[2,2] + matriz.conf.teste[2,3] + matriz.conf.teste[3,1] + matriz.conf.teste[3,2] + matriz.conf.teste[3,3]) * 100 # calcula a acurácia de teste
+print(acc.teste)
+```
+

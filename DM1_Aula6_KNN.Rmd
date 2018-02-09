@@ -1,0 +1,168 @@
+---
+title: "DM1_Aula6 - KNN"
+author: "Prof. Tatiana Escovedo"
+date: "30/01/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (KNN)
+
+## 1. KNN
+
+O dataset *wine*, do pacote *rebmix*, contém 178 exemplos com 13 características derivadas da análise química de 3 tipos de vinho proveninentes da mesma região da Itália, mas de vinícolas diferentes.
+
+12 atributos desta base de dados são contínuos: **Alcohol**, **Malic.Acid**, **Ash**, **Alcalinity.of.Ash**, **Magnesium**, **Total.Phenols**, **Flavanoids**, **Nonflavanoid.Phenols**, **Proanthocyanins**, **Color.Intensity**, **Hue**, **OD280.OD315.of.Diluted.Wines**. 1 atributo é inteiro: **Proline**. A classe é representada pela característica **Cultivar**, que pode ser 1, 2 ou 3, de acordo com a vinícola originária.
+
+### 1.1. Pacotes e Carga de Dados
+
+```{r}
+#install.packages("rebmix")
+data("wine", package = "rebmix")
+```
+
+### 1.2. Análise Exploratória de Dados 
+
+Vamos verificar a distribuição de classes do dataset com a função **barplot**.
+
+```{r}
+barplot(prop.table(table(wine$Cultivar)), col = "blue", main = "Distribuição de classes")
+```
+
+A performance do KNN depende da métrica de distância. Devemos em geral normalizar a escala das características, para que características com maior range não sejam tratadas como mais importantes. Com a função **boxplot**, verificamos que claramente **Proline** tem um range maior que as outras características.
+
+```{r}
+boxplot(wine)
+```
+
+### 1.3. Preparação de Dados
+
+Verificamos que é necessário normalizar os dados, e podemos fazer isto com a função *scale*:
+
+```{r}
+atributos <- wine[, 1:13] # pegamos apenas as características
+atributos <- scale(atributos) # normalizamos as características usando média 0 e desvio padrão 1
+```
+
+Verificamos no boxplot que agora os dados estão normalizados.
+
+```{r}
+boxplot(atributos)
+```
+
+Agora precisamos criar os nossos conjuntos de treino e de teste. Como as classes são relativamente equilibradas (verificamos anteriormente com o barplot), podemos usar amostragem aleatória sem reposição. Vamos usar a metade dos dados para treino e a outra metade para teste.
+
+```{r}
+set.seed(2016) # esta linha garante que a cada execução do Script do início, os mesmos valores serão gerados
+numLinhas = nrow(atributos)
+baseTreino <- sample(1:numLinhas, 89, replace = FALSE)
+head(baseTreino)
+```
+
+
+### 1.4. Modelagem
+
+### 1.4.1. Pacotes e Carga de Dados
+
+Uma das formas de estimar um modelo KNN no R é usando a função **knnVCN**, do pacote **knnGarden**, que nos possibilita especificar várias métricas de distância
+
+```{r}
+#install.packages("knnGarden")
+library("knnGarden")
+```
+
+### 1.4.2. Construção do Modelo
+
+Vamos construir um primeiro modelo usando **K = 2** e a distância de **canberra**.
+
+```{r}
+modeloKNN <- knnVCN(atributos[baseTreino,], # características da base de treino
+                    wine$Cultivar[baseTreino], # variável de classe
+                    atributos[-baseTreino,], # características da base de teste
+                    K = 2, # número de vizinhos
+                    method = "canberra") # métrica de distância
+```
+
+(para agilizar, não vamos avaliar as métricas de classificação na base de treino. Faça isso em casa.)
+
+### 1.4.3. Aplicação e Avaliação do Modelo
+
+Os valores preditos pelo modelo estão armazenados em **modeloKNN$TstXIBelong**. Vamos mostrá-los em uma matriz de confusão...
+
+```{r}
+matrizConf <- table(modeloKNN$TstXIBelong, wine$Cultivar[-baseTreino])
+print(matrizConf)
+```
+
+... e calcular a acurácia de teste.
+
+```{r}
+accTeste <- (matrizConf[1,1] + matrizConf[2,2] + matrizConf[3,3]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[1,3] + matrizConf[2,1] + matrizConf[2,2] + matrizConf[2,3] + matrizConf[3,1] + matrizConf[3,2] + matrizConf[3,3]) * 100 # calcula a acurácia de teste
+print(round(accTeste,2))
+```
+
+
+### 1.4.4. Variação 2 dos parâmetros do Modelo
+
+Vamos experimentar uma outra medida de distância, a **euclidiana**, e ver o que acontece com a acurácia de teste.
+
+```{r}
+modeloKNN <- knnVCN(atributos[baseTreino,], # características da base de treino
+                    wine$Cultivar[baseTreino], # variável de classe
+                    atributos[-baseTreino,], # características da base de teste
+                    K = 2, # número de vizinhos
+                    method = "euclidean") # métrica de distância
+```
+
+Os valores preditos pelo modelo estão armazenados em **modeloKNN$TstXIBelong**. Vamos mostrá-los em uma matriz de confusão...
+
+```{r}
+matrizConf <- table(modeloKNN$TstXIBelong, wine$Cultivar[-baseTreino])
+print(matrizConf)
+```
+
+... e calcular a acurácia de teste.
+ 
+```{r}
+accTeste <- (matrizConf[1,1] + matrizConf[2,2] + matrizConf[3,3]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[1,3] + matrizConf[2,1] + matrizConf[2,2] + matrizConf[2,3] + matrizConf[3,1] + matrizConf[3,2] + matrizConf[3,3]) * 100 # calcula a acurácia de teste
+print(round(accTeste,2))
+```
+
+### 1.4.5. Variação 3 dos parâmetros do Modelo
+
+Vamos agora alterar o valor de **K** para **3** e ver o que acontece com a acurácia de teste.
+
+```{r}
+modeloKNN <- knnVCN(atributos[baseTreino,], # características da base de treino
+                    wine$Cultivar[baseTreino], # variável de classe
+                    atributos[-baseTreino,], # características da base de teste
+                    K = 3, # número de vizinhos
+                    method = "euclidean") # métrica de distância
+```
+
+Os valores preditos pelo modelo estão armazenados em **modeloKNN$TstXIBelong**. Vamos mostrá-los em uma matriz de confusão...
+
+```{r}
+matrizConf <- table(modeloKNN$TstXIBelong, wine$Cultivar[-baseTreino])
+print(matrizConf)
+```
+
+... e calcular a acurácia de teste.
+
+```{r}
+accTeste <- (matrizConf[1,1] + matrizConf[2,2] + matrizConf[3,3]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[1,3] + matrizConf[2,1] + matrizConf[2,2] + matrizConf[2,3] + matrizConf[3,1] + matrizConf[3,2] + matrizConf[3,3]) * 100 # calcula a acurácia de teste
+print(round(accTeste,2))
+```
+
+Agora, responda...
+
+> Com base nos resultados das 3 variações do modelo, qual destes deveria ser usado para esta base de dados? Como você apresentaria um relatório da sua análise do problema?
+

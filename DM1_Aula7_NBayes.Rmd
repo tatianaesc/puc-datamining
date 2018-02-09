@@ -1,0 +1,331 @@
+---
+title: "DM1_Aula7 - Naive Bayes"
+author: "Prof. Tatiana Escovedo"
+date: "05/02/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (Naive Bayes)
+
+## 1. Naive Bayes (Exemplo 1)
+
+### 1.1. Pacotes e Carga de Dados
+
+Para este exemplo, vamos gerar 100 dados simulados com 2 atributos, *x1* e *x2*, a partir de uma distribuição Gaussiana (Normal). A função *rnorm* gera dados aleatórios a partir de uma distribuição normal.
+
+```{r}
+numAtrib <- 2 # especifica o número de atributos
+N <- 100 # especifica o número de linhas do dataset
+set.seed(2017) # garante que conseguiremos reproduzir o exemplo
+x <- matrix(rnorm(N*numAtrib), ncol = numAtrib) # contém os valores dos atributos gerados aleatoriamente usando rnorm
+colnames(x) <- c("x1", "x2") # nomeia os atributos x1 e x2
+y <- as.numeric((x[,1]^2 + x[,2]^2) > 2.3) # contém os rótulos de classes, 1 (se x1^2 + s2^2 > 2.3) ou 0 (caso contrário)
+```
+
+### 1.2. Análise Exploratória de Dados 
+
+Vamos dar uma olhada nos dados gerados.
+
+```{r}
+head(y)
+head(x)
+```
+
+Vamos verificar a distribuição de classes do dataset com a função **barplot**:
+
+```{r}
+barplot(prop.table(table(y)), col = "blue", main = "Distribuição de classes")
+```
+
+E a densidade dos atributos x1 e x2, usando **densityplot**:
+```{r}
+
+require(lattice)
+densityplot(x[,1], xlab = "x1")
+densityplot(x[,2], xlab = "x2")
+```
+
+Como esperado, x1 e x2 seguem aproximadamente uma distribuição normal (foram geradas com rnorm). A classe 0 aparenta ser mais frequente que a classe 1.
+
+### 1.3. Preparação de Dados
+
+A classe de y é *numeric*. Precisaremos transformar para *factor*.
+
+```{r}
+class(y)
+y <- as.factor(y)
+class(y)
+```
+
+Vamos agora combinar x e y e um único dataframe, com a função **as.data.frame**.
+
+```{r}
+dados <- cbind(y,x)
+dados <- as.data.frame(dados)
+```
+
+Vamos selecionar 70 observações para o conjunto de treino, randomicamente e sem reposição. 
+
+```{r}
+set.seed(2016)
+baseTreino <- sample(1:N, 70, FALSE)
+```
+
+### 1.4. Modelagem
+
+### 1.4.1. Pacotes
+
+```{r}
+#install.packages("e1071")
+library("e1071")
+```
+
+### 1.4.2. Construção do Modelo
+
+Agora vamos construir o modelo usando a função **naiveBayes**.
+
+```{r}
+modeloNB <- naiveBayes(x[baseTreino,], y[baseTreino])
+print(modeloNB)
+```
+
+### 1.4.3. Aplicação e Avaliação do Modelo (Dados de Treino)
+
+Inicialmente, vamos aplicar o modelo nos dados de treino, usando a função **predict**, usada para fazer predições de classe. Se usarmos o parâmetro *type = "raw"*, serão mostradas as probabilidades de cada exemplo pertencer a cada uma das classes.
+
+```{r}
+probsTreino <- predict(modeloNB, dados[baseTreino,-1], type = "raw")
+head(probsTreino)
+```
+
+Se usarmos o parâmetro *type = "class"*, serão mostradas as classes preditas para a base de treino.
+
+```{r}
+classesTreino <- predict(modeloNB, dados[baseTreino,-1], type = "class")
+head(classesTreino)
+```
+
+Podemos comparar o resultado previsto com as classes reais da base de treino. Primeiro, vamos olhar como estão os dados originais.
+
+```{r}
+head(dados[baseTreino,1])
+```
+
+Verificamos que nos dados originais as classes estão como 1 e 2, mas nas classes previstas estão como 0 e 1. Podemos comparar as classes reais com as preditas, subtraindo 1 das classes reais para ajustar a notação.
+
+```{r}
+classesTreino == dados[baseTreino,1]-1
+```
+
+Agora podemos exibir a matriz de confusão e confirmamos que são 4 os exemplos classificados incorretamente.
+
+```{r}
+yTreino <- y[baseTreino]
+matrizConf <- table(yTreino, classesTreino)
+print(matrizConf)
+```
+
+Calculamos a acurácia de treino.
+
+```{r}
+accTreino <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de teste
+print(round(accTreino,2))
+```
+
+### 1.4.4. Aplicação e Avaliação do Modelo (Dados de Teste)
+
+Vamos finalmente aplicar o modelo nos dados de teste.
+
+```{r}
+classesTeste <- predict(modeloNB, dados[-baseTreino,-1], type = "class")
+```
+
+Vamos então calcular a matriz de confusão e a acurácia de teste.
+
+```{r}
+yTeste <- y[-baseTreino]
+matrizConf <- table(yTeste, classesTeste)
+print(matrizConf)
+accTeste <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de teste
+print(round(accTeste,2))
+```
+
+## 2. Naive Bayes (Exemplo 2)
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+Vamos trabalhar com uma base de dados real no segundo exemplo. Esta base de dados foi extraída de um sistema de radar para classificar a ionosfera em boa ou ruim, e contém 351 instâncias e 34 atributos numéricos.
+
+### 2.1. Pacotes e Carga de Dados
+
+```{r}
+#install.packages("evclass")
+data("ionosphere", package = "evclass")
+str(ionosphere)
+```
+
+Podemos observar que o objeto é composto de 2 listas: a primeira contém os atributos x, e a segunda contém a variável de classe, que é binária.
+
+### 2.2. Análise Exploratória de Dados 
+
+Vamos verificar a distribuição de classes do dataset com a função barplot...
+
+```{r}
+barplot(prop.table(table(ionosphere$y)), col = "blue", main = "Distribuição de classes", xlab = "1: Boa, 2: Ruim")
+```
+
+... e também dar uma olhada na variável x.
+
+```{r}
+summary(ionosphere$x)
+```
+
+O atriburo **V2** parece ser constante...
+
+```{r}
+summary(ionosphere$x[,2])
+```
+
+Podemos então removê-lo da base de dados.
+
+```{r}
+x <- as.data.frame(ionosphere$x[,])
+x$V2 <- NULL
+```
+
+Observe que o atriburo **V1** é interessante. Ele tem valor mínimo 0 e máximo 1, e 2 picos, indicando que esta variável provavelmente é categórica, só podendo assumir 2 valores: 0 e 1.
+
+```{r}
+summary(ionosphere$x[,1])
+densityplot(ionosphere$x[,1], xlab = "V1")
+```
+
+Vamos então removê-la também da nossa base de dados, para trabalhar apenas com as variáveis numéricas.
+
+```{r}
+x$V1 <- NULL
+```
+
+Vamos armazenar as classes como fator no objeto **y**.
+
+```{r}
+y <- as.factor(ionosphere$y)
+```
+
+### 2.3. Preparação de Dados
+
+Vamos preparar os conjuntos de treino e teste.
+
+```{r}
+set.seed(2018)
+N = nrow(ionosphere$x)
+baseTreino <- sample(1:N, 251, FALSE)
+```
+
+### 2.4. Modelagem
+
+### 2.4.1. Construção do Modelo
+
+Agora podemos construir o modelo com a função **naiveBayes**, que recebe a variável alvo seguida pelos atributos.
+
+```{r}
+modeloNB <- naiveBayes(y[baseTreino]~., data = x[baseTreino,])
+```
+
+### 2.4.3. Aplicação e Avaliação do Modelo
+
+Vamos aplicar o modelo nos dados de teste e verificar as probabilidades geradas para cada classe, e as classes previstas.
+
+```{r}
+probsTeste <- predict(modeloNB, x[-baseTreino,], type = "raw")
+head(round(probsTeste,3),4)
+classesTeste <- predict(modeloNB, x[-baseTreino,], type = "class")
+head(classesTeste)
+```
+
+Vamos então gerar a matriz de confusão para os dados de teste, usando a função **confusionMatrix** do pacote **caret**.
+
+```{r}
+#install.packages("caret")
+library("caret")
+resultado <- confusionMatrix(classesTeste, y[-baseTreino])
+resultado$table # exibe a matriz de confusão
+resultado$overall[1] # exibe a acurácia
+```
+
+### 2.4.4. Melhorias no Modelo
+
+Vamos tentar melhorar o resultado do nosso modelo. O NaiveBayes assume que os atributos são independentes, então, a correlação entre eles deveria ser zero. Vamos verificar se esta premissa é satisfeita, examinando a matriz de correlações.
+
+```{r}
+library("corrplot")
+atributos <- x # vai exibir a correlação apenas entre os atributos (dados numéricos)
+matriz <- cor(atributos)
+head(round(matriz,2)) # arredonda os coeficientes para duas casas decimais
+corrplot(matriz, method="color")
+```
+
+Aparentemente, diversos atributos são correlacionados. Podemos removê-los da base de dados para melhorar a performance do modelo. Vamos então usar a função **findCorrelation**, do pacote **caret**, para eliminar as variáveis com correlação maior que 0.6.
+
+Primeiro, vamos preparar os dados.
+
+```{r}
+x <- as.data.frame(ionosphere$x[,]) # recarrega os dados originais
+x$V2 <- NULL # elimina V2, pois é constante
+```
+
+Em seguida, vamos aplicar a função passando a matriz de correlação e o corte desejado. Ela retorna os atributos que excedem o valor de corte.
+
+```{r}
+findCorrelation(cor(x), cutoff = 0.6, exact = TRUE, names = TRUE)
+```
+
+Em seguida, vamos eliminá-los da base de dados.
+
+```{r}
+x$V15 <- NULL
+x$V19 <- NULL
+x$V17 <- NULL
+x$V21 <- NULL
+x$V13 <- NULL
+x$V11 <- NULL
+x$V25 <- NULL
+x$V33 <- NULL
+```
+
+Será necessário construir um novo modelo.
+
+```{r}
+modeloNB2 <- naiveBayes(y[baseTreino]~., data = x[baseTreino,])
+```
+
+Vamos aplicar o novo modelo na base de teste.
+
+```{r}
+classesTeste2 <- predict(modeloNB2, x[-baseTreino,], type = "class")
+```
+
+E avaliar o resultado.
+
+```{r}
+resultado2 <- confusionMatrix(classesTeste2, y[-baseTreino])
+resultado2$table
+resultado2$overall[1]
+```
+
+A acurácia passou para **88%**, uma melhora significativa. Vale a pena observar que o modelo melhorou a classificação da classe mais frequente, 1. Não foi observada melhoria na classificação da classe 2.
+
+> **Para casa: experimente a combinação de outros atributos e tente alcançar a acurácia de 90%.**
+

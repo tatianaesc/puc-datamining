@@ -1,0 +1,271 @@
+---
+title: "DM1_Aula8 - SVM"
+author: "Prof. Tatiana Escovedo"
+date: "05/02/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (SVM)
+
+## 1. SVM
+
+Estudos científicos mostram que a ocorrência de diabetes está relacionada à região geográfica e a etnia das pessoas. Por exemplo, a diabetes tipo 2 alcança proporções epidêmicas em Nauru, nos aborígenes da Austrália, e também em muitos grupos de índios americanos nos Estados Unidos.
+
+### 1.1. Pacotes e Carga de Dados
+
+Iremos trabalhar com o dataset **PimaIndiansDiabetes2**, no pacote **mlbench**. Este dataset foi coletado pelo Instituto Nacional de Diabetes e Doenças Digestivas e Renais, e contém 768 observações de 9 variáveis medidas em mulheres de pelo menos 21 anos de herança indígena Pima.
+
+**Variáveis:** *pregnant* (número de vezes grávida), *glucose* (concentração de glucose no plasma), *pressure* (pressão sanguínea diastólica em mmHg), *triceps* (espessura da dobra da pele do tríceps em mm), *insulin* (taxa de insulina de 2h em mu U/ml), *mass* (índice de massa corpórea), *pedrigree* (função de pedrigree de diabetes), *age* (idade em anos), *diabetes* (variável de classe, indicativa de diabetes neg/pos).
+
+```{r}
+data("PimaIndiansDiabetes2", package="mlbench")
+```
+
+### 1.2. Análise Exploratória de Dados 
+
+Vamos verificar se temos o número de linhas e colunas conforme esperado.
+
+```{r}
+ncol(PimaIndiansDiabetes2)
+nrow(PimaIndiansDiabetes2)
+```
+
+Podemos usar a função **str** para exibir a estrutura do DataFrame:
+
+```{r}
+str(PimaIndiansDiabetes2)
+```
+
+Percebemos alguns NAs em algumas variáveis. Vamos verificar então se temos algum problema em potencial de valores faltantes.
+
+```{r}
+sapply(PimaIndiansDiabetes2, function(x)sum(is.na(x)))
+```
+
+Pudemos constatar um grande número de NAs, particularmente para os atributos *triceps* e *insulin*. Temos algumas alternativas para tratar este problema: trabalhar apenas com os indivíduos que temos a informação completa, inputar um valor plausível para as observações faltantes (média ou mediana, por exemplo) ou ainda, usar um modelo estatístico para entender a distribuição desses dados.
+
+Dado o grande número de *missings* em *triceps* e *insulin*, vamos remover estes atributos da amostra e usar o método **na.omit** para remover qualquer valor faltante remanescente. Vamos armazenar os dados resultantes no objeto dados:
+
+```{r}
+dados <- (PimaIndiansDiabetes2)
+dados$insulin <- NULL
+dados$triceps <- NULL
+dados <- na.omit(dados)
+```
+
+Devemos ainda ter um número suficiente de observação para a análise de dados. Vamos verificar.
+
+```{r}
+ncol(dados)
+nrow(dados)
+```
+
+Vamos então inspecionar alguns dados visualmente.
+
+```{r}
+barplot(prop.table(table(dados$diabetes)), col = "green", main = "Distribuição de classes")
+hist(dados$age, col = "red")
+hist(dados$pregnant, col = "blue")
+boxplot(dados$glucose, dados$pressure, dados$mass, col = "gold", names = c("glucose", "pressure", "mass"))
+```
+
+### 1.3. Preparação de Dados
+
+Para usar o SVM, será necessário transformar a variável de classe para um formato apropriado.
+
+```{r}
+y <- (dados$diabetes) # transfere os dados para o objeto y
+levels(y) <- c("-1", "1") # substitui as labes neg e pos para -1 e 1
+y <- as.numeric(as.character(y)) # converte os valores para double (numérico)
+y <- as.matrix(y) # transforma em matriz
+```
+
+As funções kernel do SVM  geralmente dependem do produto interno dos vetores de atributos. Valores muito grandes podem causar problemas. Vamos então transformar os atributos para que eles tenham média 0 e variância 1, usando a função **scale**.
+
+```{r}
+x <- (dados)
+x$diabetes <- NULL
+x <- as.matrix(x)
+x <- scale(x)
+```
+
+Vamos agora selecionar os conjuntos de treino e teste. Primeiro, vamos contar o número de linhas de x novamente, para decidir o tamanho do conjunto de treino. Em seguida, vamos gerar o conjunto com **sample**.
+
+```{r}
+set.seed(103)
+numLinhas = nrow(x)
+baseTreino <- sample(1:numLinhas, 600, FALSE)
+```
+
+### 1.4. Modelagem
+
+### 1.4.1. Pacotes e Carga de Dados
+
+```{r}
+#install.packages("svmpath")
+require(svmpath)
+```
+
+### 1.4.2. Construção do Modelo
+
+Vamos usar o pacote **svmpath** para estimar o modelo. Ele disponibiliza a função **svmpath**, que possibilita o uso de duas funções kernel diferentes: polinomial e radial basis.
+
+```{r}
+#install.packages("svmpath")
+require(svmpath)
+modelo1 <- svmpath(x[baseTreino,], y[baseTreino,], 
+                   kernel.function = radial.kernel, 
+                   trace = TRUE) # colocar trace = FALSE evita a impressão dos resultados do modelo na console
+
+```
+
+OBS: É possível determinar o número máximo de iterações com o parâmetro *Nmoves*.
+
+A função **svmpath** também computa o valor estimado do parâmetro de custo do SVM e o erro de classificação associados a cada passo ou iteração. Estes valores são armazenador na variável *modelo1*. Vamos então verificar o parâmetro custo e o número de erros do processo de otimização das 3 primeiras iterações:
+
+```{r}
+head(modelo1$lambda, 3)
+head(modelo1$Error, 3)
+```
+
+Plotando todos os valores de *lambda* e *Error*:
+
+```{r}
+plot(modelo1$lambda, type = "l", col = "blue")
+plot(modelo1$Error, type = "l", col = "red")
+```
+
+Observamos que o parâmetro custo claramente decai a cada iteração. Já o número de observações incorretamente classificadas inicialmente decai, alcançando o seu mínimo em torno de 500 iterações, e então começa a aumentar.
+
+Mas qual é o número mínimo de observações classificadas com erro? E em qual iteração este número ocorreu? Visualmente, é difícil de descobrir, mas uma das formas de verificar o erro mínimo é:
+
+```{r}
+with(modelo1, Error[Error == min(Error)])
+```
+
+Aparentemente, para a base de treino, a melhor iteração classificou erradamente apenas 9 exemplos, de um total de 600 (aproximadamente 1,5% da base de treino).
+
+Cada valor de erro mínimo está associado com um valor único de custo/regularização. Gostaríamos de utilizar o menor destes valores para aplicar o modelo no conjunto de testes. Vamos descobrir qual é este valor.
+
+```{r}
+erro <- with(modelo1, Error[Error == min(Error)]) # guarda os menores erros de classificação
+linha_erro_minimo <- which(modelo1$Error == min(modelo1$Error)) # recupera as linhas correspondentes aos menores erros
+temp_lambda <- modelo1$lambda[linha_erro_minimo] # recupera os valores de lambda associados com as linhas de erro mínimo
+loc <- which(modelo1$lambda[linha_erro_minimo] == min(modelo1$lambda[linha_erro_minimo])) # identifica a posição do menor lambda
+lambda <- temp_lambda[loc] # guarda o menor lambda
+print(lambda)
+```
+
+OBS: o método **svmpath** retorna o inverso (1/p) do parâmetro de regularização da função kernel (penalidade do erro).
+
+```{r}
+reg <- 1/lambda
+print(reg)
+```
+
+### 1.4.3. Aplicação e Avaliação do Modelos
+
+#### 1.4.3.1. Conjunto de Treino
+
+A predição pode ser feita com a função **predict**, que recebe o modelo ajustado, o valor de custo/regularização e os dados que se deseja classificar.
+
+```{r}
+pred_treino <- predict(modelo1, newx = x[baseTreino,], lambda = lambda, type = "class")
+```
+
+Vamos calcular a matriz de confusão e a acurácia de treino:
+
+```{r}
+matrizConf <- table(y[baseTreino,], pred_treino, dnn = c("Observado", "Predito"))
+print(matrizConf)
+accTreino <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de treino
+print(round(accTreino,2))
+```
+
+O modelo teve boa acurácia no conjunto de treino. Vamos verificar o que acontece no conjunto de teste.
+
+#### 1.4.3.2. Conjunto de Teste
+
+```{r}
+pred_teste <- predict(modelo1, newx = x[-baseTreino,], lambda = lambda, type = "class")
+```
+
+Vamos calcular a matriz de confusão e a acurácia de treino:
+
+```{r}
+matrizConf <- table(y[-baseTreino,], pred_teste, dnn = c("Observado", "Predito"))
+print(matrizConf)
+accTeste <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de treino
+print(round(accTeste,2))
+```
+
+O modelo teve acurácia muito ruim no conjunto de teste. Este é um exemplo claro de *overfitting*.
+
+### 1.4.4. Melhoria da Performance do Modelo
+
+Uma das formas de melhorar a performance do modelo é escolher um kernel alternativo. Vamos então estimar um novo SVM, agora usando um kernel polinomial.
+
+```{r}
+modelo2 <- svmpath(x[baseTreino,], y[baseTreino,], 
+                   kernel.function = poly.kernel, 
+                   trace = TRUE) # colocar trace = FALSE evita a impressão dos resultados do modelo na console
+```
+
+Para verificar se a solução encontrada foi linear, usamos:
+
+```{r}
+modelo2$linear
+```
+
+Isto é um bom sinal em relação ao overfitting, pois modelos com overfitting tendem a ser mais complexos. Vamos comparar este modelo com o anterior. Obviamente, isto não é uma prova que no modelo2 não houve overfitting!
+
+```{r}
+modelo1$linear
+```
+
+Vamos confirmar nossa premissa avaliando o modelo no conjunto de treino e no conjunto de teste. Para tal, primeiro vamos obter o parâmetro de regularização (lambda2).
+
+```{r}
+erro2 <- with(modelo2, Error[Error == min(Error)]) # guarda os menores erros de classificação
+linha_erro_minimo2 <- which(modelo2$Error == min(modelo2$Error)) # recupera as linhas correspondentes aos menores erros
+temp_lambda2 <- modelo2$lambda[linha_erro_minimo2] # recupera os valores de lambda associados com as linhas de erro mínimo
+loc2 <- which(modelo2$lambda[linha_erro_minimo2] == min(modelo2$lambda[linha_erro_minimo2])) # identifica a posição do menor lambda
+lambda2 <- temp_lambda2[loc2] # guarda o menor lambda
+print(lambda2)
+reg2 <- 1/lambda2 # calcula o parâmetro de regularização
+print(reg2)
+erro2[1]/600
+```
+
+Duas coisas importantes neste resultado: o valor do parâmetro de regularização e o valor do erro, estimado em 23,3% no conjunto de treino. Muito maior do que no modelo1, porém, a chance de *overfitting* é bem menor.
+
+Agora vamos aplicar o modelo no conjunto de treino:
+
+```{r}
+pred_treino2 <- predict(modelo2, newx = x[baseTreino,], lambda = lambda2, type = "class")
+matrizConf <- table(y[baseTreino,], pred_treino2, dnn = c("Observado", "Predito"))
+print(matrizConf)
+accTreino <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de treino
+print(round(accTreino,2))
+```
+
+E finalmente, aplicar o modelo no conjunto de teste:
+
+```{r}
+pred_teste2 <- predict(modelo2, newx = x[-baseTreino,], lambda = lambda2, type = "class")
+matrizConf <- table(y[-baseTreino,], pred_teste2, dnn = c("Observado", "Predito"))
+print(matrizConf)
+accTeste <- (matrizConf[1,1] + matrizConf[2,2]) / (matrizConf[1,1] + matrizConf[1,2] + matrizConf[2,1] + matrizConf[2,2]) * 100 # calcula a acurácia de treino
+print(round(accTeste,2))
+```
+
+Isto mostra que usar um kernel alternativo pode parecer uma mudança pequena, mas pode ter um impacto drástico na performance. É necessário testar diferentes valores.

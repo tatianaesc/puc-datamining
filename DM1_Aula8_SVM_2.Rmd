@@ -1,0 +1,91 @@
+---
+title: "DM1_Aula8 - SVM"
+author: "Prof. Tatiana Escovedo"
+date: "05/02/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (SVM)
+
+### 0. Importação da Tabela (csv file)
+
+```{r}
+tabela = read.table("BD_aulaclass.csv", sep = ";", dec = ",", header = TRUE)
+summary(tabela)
+```
+
+
+### 1. Preparação de Dados
+
+```{r}
+# Armazenar os atributos no objeto x e as classes no objeto y
+x <- tabela
+x$ADIMPLENTE <- NULL
+y <- tabela$ADIMPLENTE
+```
+
+```{r}
+# Sortear 75% dos dados para treino
+set.seed(2018)
+N = nrow(x)
+baseTreino <- sample(1:N, N*0.75, FALSE)
+```
+
+### 2. Modelagem SVM
+
+#### 2.1. Pacotes
+
+```{r}
+library(kernlab) 
+library(mlbench) 
+```
+
+#### 2.2. Construção do Modelo
+
+```{r}
+# Construir o modelo para prever y em função de x
+modeloSVM <- ksvm(y[baseTreino]~., data=x[baseTreino,], kernel="rbfdot") # kernel Gaussiana
+print(modeloSVM) 
+```
+
+#### 2.3. Aplicação do Modelo
+
+```{r}
+classesTeste <- predict(modeloSVM, x[-baseTreino,], type="response") 
+```
+
+#### 2.4. Avaliação do Modelo
+
+```{r}
+library("caret")
+resultado <- confusionMatrix(classesTeste, y[-baseTreino])
+resultado$table # exibe a matriz de confusão
+resultado$overall[1] # exibe a acurácia
+```
+
+#### 2.5. Alternativa do Modelo
+
+```{r}
+# Construção
+modeloSVM <- ksvm(y[baseTreino]~., data=x[baseTreino,], kernel="polydot") # kernel Polinomial
+print(modeloSVM) 
+# Aplicação
+classesTeste <- predict(modeloSVM, x[-baseTreino,], type="response") 
+# Avaliação
+resultado <- confusionMatrix(classesTeste, y[-baseTreino])
+resultado$table # exibe a matriz de confusão
+resultado$overall[1] # exibe a acurácia
+```
+
+> **Exercício:** consulte a documentação da função ksvm e verifique se há outra função kernel que melhora a acurácia de teste.
+
+> **Para casa:** Aplique o SVM em outros datasets, por exemplo, o PimaIndiansDiabetes. DICA: x <- PimaIndiansDiabetes[,1:8] e y <- PimaIndiansDiabetes$diabetes

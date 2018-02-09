@@ -1,0 +1,167 @@
+---
+title: "DM1_Aula7 - Naive Bayes"
+author: "Prof. Tatiana Escovedo"
+date: "05/02/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cat("\014") # Limpa a console
+rm(list = ls()) # Limpa o global environment
+```
+
+# Prática de Classificação (Naive Bayes)
+
+### 0. Importação da Tabela (csv file)
+
+```{r}
+tabela = read.table("BD_aulaclass.csv", sep = ";", dec = ",", header = TRUE)
+summary(tabela)
+```
+
+
+### 1. Preparação de Dados
+
+```{r}
+# Armazenar os atributos no objeto x e as classes no objeto y
+x <- tabela
+x$ADIMPLENTE <- NULL
+y <- tabela$ADIMPLENTE
+```
+
+```{r}
+# Sortear 75% dos dados para treino
+set.seed(2018)
+N = nrow(x)
+baseTreino <- sample(1:N, N*0.75, FALSE)
+```
+
+### 2. Modelagem
+
+#### 2.1. Pacotes
+
+```{r}
+#install.packages("e1071")
+library("e1071")
+```
+
+#### 2.2. Construção do Modelo
+
+```{r}
+# Construir o modelo para prever y em função de x
+modeloNB <- naiveBayes(y[baseTreino]~., data = x[baseTreino,])
+show(modeloNB)
+```
+
+#### 2.3. Aplicação do Modelo
+
+```{r}
+# Verificar as probabilidades geradas para cada classe
+probsTeste <- predict(modeloNB, x[-baseTreino,], type = "raw")
+head(round(probsTeste,3),4)
+# Verificar as classes previstas
+classesTeste <- predict(modeloNB, x[-baseTreino,], type = "class")
+head(classesTeste)
+```
+
+#### 2.4. Avaliação do Modelo
+
+```{r}
+#install.packages("caret")
+library("caret")
+```
+
+```{r}
+# Gerar a matriz de confusão para os dados de teste
+resultado <- confusionMatrix(classesTeste, y[-baseTreino])
+resultado$table # exibe a matriz de confusão
+resultado$overall[1] # exibe a acurácia
+```
+
+### 3. Validação Cruzada
+
+```{r}
+# 3-fold-cv estratificado
+particoes <- createFolds(tabela$ADIMPLENTE, k=3)
+particoes # mostra as partições criadas
+particoes$Fold1 # mostra a partição 1
+```
+
+#### 2.2.1 Separação Treino e Teste
+```{r}
+tabTreino1 <- tabela[-particoes$Fold1, ]
+tabTreino2 <- tabela[-particoes$Fold2, ]
+tabTreino3 <- tabela[-particoes$Fold3, ]
+
+tabTeste1 <- tabela[particoes$Fold1, ]
+tabTeste2 <- tabela[particoes$Fold2, ]
+tabTeste3 <- tabela[particoes$Fold3, ]
+```
+
+### 2.3 Execução do NB para o treinamento em função da idade
+```{r}
+NB1 <- naiveBayes(ADIMPLENTE~IDADE, data = tabTreino1)
+NB2 <- naiveBayes(ADIMPLENTE~IDADE, data = tabTreino2)
+NB3 <- naiveBayes(ADIMPLENTE~IDADE, data = tabTreino3)
+```
+
+### 2.4 Predições para a Base de Testes
+```{r}
+PREDNB1 <- predict(NB1, newdata = tabTeste1) 
+PREDNB2 <- predict(NB2, newdata = tabTeste2) 
+PREDNB3 <- predict(NB3, newdata = tabTeste3)
+```
+
+### 2.5 Calcular as Métricas para o NB
+```{r}
+MATCONFNB1 <- table(PREDNB1, tabTeste1$ADIMPLENTE, deparse.level = 2)
+MATCONFNB2 <- table(PREDNB2, tabTeste2$ADIMPLENTE, deparse.level = 2)
+MATCONFNB3 <- table(PREDNB3, tabTeste3$ADIMPLENTE, deparse.level = 2)
+
+show(MATCONFNB1)
+show(MATCONFNB2)
+show(MATCONFNB3)
+
+ACC1 <- sum(diag(MATCONFNB1))/nrow(tabTeste1) #Acurácia 1
+ACC2 <- sum(diag(MATCONFNB2))/nrow(tabTeste2) #Acurácia 2
+ACC3 <- sum(diag(MATCONFNB3))/nrow(tabTeste3) #Acurácia 3
+
+ACCFINAL <- ( ACC1 + ACC2 + ACC3 ) / 3
+ACCFINAL*100
+```
+
+### 2.3b Execução do NB para o treinamento em função de todas as variáveis
+```{r}
+NB1 <- naiveBayes(ADIMPLENTE~ ., data = tabTreino1)
+NB2 <- naiveBayes(ADIMPLENTE~ ., data = tabTreino2)
+NB3 <- naiveBayes(ADIMPLENTE~ ., data = tabTreino3)
+```
+
+### 2.4b Predições para a Base de Testes
+```{r}
+PREDNB1 <- predict(NB1, newdata = tabTeste1) 
+PREDNB2 <- predict(NB2, newdata = tabTeste2) 
+PREDNB3 <- predict(NB3, newdata = tabTeste3)
+```
+
+### 2.5b Calcular as Métricas para o NB
+```{r}
+MATCONFNB1 <- table(PREDNB1, tabTeste1$ADIMPLENTE, deparse.level = 2)
+MATCONFNB2 <- table(PREDNB2, tabTeste2$ADIMPLENTE, deparse.level = 2)
+MATCONFNB3 <- table(PREDNB3, tabTeste3$ADIMPLENTE, deparse.level = 2)
+
+show(MATCONFNB1)
+show(MATCONFNB2)
+show(MATCONFNB3)
+
+ACC1 <- sum(diag(MATCONFNB1))/nrow(tabTeste1) #Acurácia 1
+ACC2 <- sum(diag(MATCONFNB2))/nrow(tabTeste2) #Acurácia 2
+ACC3 <- sum(diag(MATCONFNB3))/nrow(tabTeste3) #Acurácia 3
+
+ACCFINAL <- ( ACC1 + ACC2 + ACC3 ) / 3
+ACCFINAL*100
+```
